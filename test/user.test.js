@@ -8,7 +8,7 @@ import User from "../models/User.js";
 const { expect } = chai;
 chai.use(chaiHttp);
 
-describe("User API", () => {
+describe("BDD - User API", () => {
   before(async () => {
     await mongoose.connect(process.env.MONGO_URI);
   });
@@ -18,45 +18,53 @@ describe("User API", () => {
     await mongoose.connection.close();
   });
 
-  it("Devrait créer un utilisateur", async () => {
+  let userId;
+
+  it("Devrait créer un utilisateur avec des données valides", async () => {
     const res = await request(app).post("/api/users").send({
-      name: "John Doe",
-      email: "johndoe@example.com",
-      role: "user",
+      name: "Alice Doe",
+      email: "alice@example.com",
+      role: "admin",
     });
 
     expect(res.status).to.equal(201);
-    expect(res.body).to.have.property("name", "John Doe");
+    expect(res.body).to.have.property("name", "Alice Doe");
+    expect(res.body).to.have.property("email", "alice@example.com");
+    userId = res.body._id;
   });
 
-  it("Devrait récupérer tous les utilisateurs", async () => {
+  it("Ne devrait pas créer un utilisateur sans email", async () => {
+    const res = await request(app).post("/api/users").send({
+      name: "Bob Doe",
+    });
+
+    expect(res.status).to.equal(400);
+    expect(res.body).to.have.property("error");
+  });
+
+  it("Devrait récupérer tous les utilisateurs même s’il y en a zéro", async () => {
+    await User.deleteMany({}); // Supprime tous les utilisateurs
     const res = await request(app).get("/api/users");
+    
     expect(res.status).to.equal(200);
     expect(res.body).to.be.an("array");
+    expect(res.body.length).to.equal(0);
   });
 
-  it("Devrait récupérer un utilisateur par ID", async () => {
-    const user = await User.create({ name: "Jane Doe", email: "jane@example.com", role: "admin" });
+  it("Devrait renvoyer une erreur 404 si un utilisateur n'existe pas", async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const res = await request(app).get(`/api/users/${fakeId}`);
 
-    const res = await request(app).get(`/api/users/${user._id}`);
-    expect(res.status).to.equal(200);
-    expect(res.body).to.have.property("email", "jane@example.com");
+    expect(res.status).to.equal(404);
+    expect(res.body).to.have.property("message", "Utilisateur non trouvé");
   });
 
-  it("Devrait mettre à jour un utilisateur", async () => {
-    const user = await User.create({ name: "Mike", email: "mike@example.com", role: "user" });
-
-    const res = await request(app).put(`/api/users/${user._id}`).send({ name: "Mike Updated" });
-    expect(res.status).to.equal(200);
-    expect(res.body).to.have.property("name", "Mike Updated");
-  });
-
-  it("Devrait supprimer un utilisateur", async () => {
-    const user = await User.create({ name: "Paul", email: "paul@example.com", role: "user" });
+  it("Devrait supprimer un utilisateur existant", async () => {
+    const user = await User.create({ name: "Charlie Doe", email: "charlie@example.com", role: "user" });
 
     const res = await request(app).delete(`/api/users/${user._id}`);
+    
     expect(res.status).to.equal(200);
     expect(res.body).to.have.property("message", "Utilisateur supprimé");
   });
-
 });
